@@ -15,25 +15,12 @@ def rdses
 end
 
 def globals(index, application)
-  ag = evaluate_attribute(index, application, :app_global)
-  return ag unless ag.nil?
+  globals = (node['deploy'][application].try(:[], 'global') || {}).symbolize_keys
+  return globals[index.to_sym] unless globals[index.to_sym].nil?
 
   old_item = old_globals(index, application)
   return old_item unless old_item.nil?
-  evaluate_attribute(index, application, :default_global)
-end
-
-def evaluate_attribute(index, application, level)
-  case level
-  when :app_driver
-    node['deploy'].try(:[], application).try(:[], driver_type).try(:[], index.to_s)
-  when :app_global
-    node['deploy'].try(:[], application).try(:[], 'global').try(:[], index.to_s)
-  when :default_driver
-    node['defaults'].try(:[], driver_type).try(:[], index.to_s)
-  when :default_global
-    node['defaults'].try(:[], 'global').try(:[], index.to_s)
-  end
+  node['defaults']['global'][index.to_s]
 end
 
 def old_globals(index, application)
@@ -62,22 +49,19 @@ def www_group
 end
 
 def create_deploy_dir(application, subdir = '/')
-  create_dir File.join(deploy_dir(application), subdir)
-end
-
-def create_dir(path)
-  directory path do
+  dir = File.join(deploy_dir(application), subdir)
+  directory dir do
     mode '0755'
     recursive true
     owner node['deployer']['user'] || 'root'
     group www_group
-    not_if { File.directory?(path) }
+    not_if { File.directory?(dir) }
   end
-  path
+  dir
 end
 
 def deploy_dir(application)
-  globals('deploy_dir', application['shortname']) || ::File.join('/', 'srv', 'www', application['shortname'])
+  File.join('/', 'srv', 'www', application['shortname'])
 end
 
 def every_enabled_application
@@ -89,7 +73,7 @@ def every_enabled_application
 end
 
 def every_enabled_rds(context, application)
-  data = [rdses.presence, Drivers::Db::Factory.build(context, application)].flatten.compact
+  data = rdses.presence || [Drivers::Db::Factory.build(context, application)]
   data.each do |rds|
     yield rds
   end
@@ -117,14 +101,4 @@ end
 def apps_not_included
   return [] if node['applications'].blank?
   node['deploy'].keys.reject { |app_name| node['applications'].include?(app_name) }
-end
-
-def enable_mod_passenger_repo(context)
-  context.apt_repository 'passenger' do
-    uri 'https://oss-binaries.phusionpassenger.com/apt/passenger'
-    distribution node['lsb']['codename']
-    components %w[main]
-    keyserver 'keyserver.ubuntu.com'
-    key '561F9B9CAC40B2F7'
-  end
 end

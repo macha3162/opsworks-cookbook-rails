@@ -50,8 +50,7 @@ module Drivers
           pid_file = pid_file(process_number)
           Chef::Log.info("Quiet Sidekiq process if exists: #{pid_file}")
           next unless File.file?(pid_file) && pid_exists?(File.open(pid_file).read)
-
-          execute_sidekiqctl 'quiet', pid_file
+          context.execute "/bin/su - #{node['deployer']['user']} -c 'kill -s USR1 `cat #{pid_file}`'"
         end
       end
 
@@ -60,12 +59,16 @@ module Drivers
           pid_file = pid_file(process_number)
           timeout = (out[:config]['timeout'] || 8).to_i
 
-          execute_sidekiqctl 'stop', pid_file, timeout
+          context.execute(
+            "/bin/su - #{node['deployer']['user']} -c 'cd #{File.join(deploy_dir(app), 'current')} && " \
+            "#{environment.map { |k, v| "#{k}=\"#{v}\"" }.join(' ')} " \
+            "bundle exec sidekiqctl stop #{pid_file} #{timeout}'"
+          )
         end
       end
 
       def pid_file(process_number)
-        "/run/lock/#{app['shortname']}/sidekiq_#{app['shortname']}-#{process_number}.pid"
+        "#{deploy_dir(app)}/shared/pids/sidekiq_#{app['shortname']}-#{process_number}.pid"
       end
 
       def pid_exists?(pid)
@@ -77,14 +80,6 @@ module Drivers
 
       def configuration
         JSON.parse(out[:config].to_json, symbolize_names: true)
-      end
-
-      def execute_sidekiqctl(*params)
-        context.execute(
-          "/bin/su - #{node['deployer']['user']} -c 'cd #{File.join(deploy_dir(app), 'current')} && " \
-          "#{environment.map { |k, v| "#{k}=\"#{v}\"" }.join(' ')} " \
-          "bundle exec sidekiqctl #{params.map { |param| param.to_s.strip }.join(' ')}'"
-        )
       end
     end
   end
