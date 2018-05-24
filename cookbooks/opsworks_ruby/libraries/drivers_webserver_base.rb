@@ -8,22 +8,21 @@ module Drivers
       include Drivers::Dsl::Output
       include Drivers::Dsl::Packages
 
-      def self.passenger_supported?
-        false
-      end
-
       def configure
         configure_logrotate
       end
 
-      def passenger?
-        Drivers::Appserver::Factory.build(context, app).adapter == 'passenger'
+      def out
+        handle_output(raw_out)
       end
 
-      def validate_app_engine
-        return unless passenger? && !self.class.passenger_supported?
-        raise(ArgumentError, "passenger appserver not supported on #{adapter} webserver")
+      def raw_out
+        node['defaults']['webserver'].merge(
+          node['deploy'][app['shortname']]['webserver'] || {}
+        ).symbolize_keys
       end
+
+      def validate_app_engine; end
 
       protected
 
@@ -47,7 +46,7 @@ module Drivers
         return if key_data.blank?
         extensions = { private_key: 'key', certificate: 'crt', chain: 'ca' }
 
-        notifying_template "#{conf_dir}/ssl/#{app[:domains].first}.#{extensions[name]}" do
+        context.template "#{conf_dir}/ssl/#{app[:domains].first}.#{extensions[name]}" do
           owner 'root'
           group 'root'
           mode name == :private_key ? '0600' : '0644'
@@ -68,7 +67,7 @@ module Drivers
         dhparams = out[:dhparams]
         return if dhparams.blank?
 
-        notifying_template "#{conf_dir}/ssl/#{app[:domains].first}.dhparams.pem" do
+        context.template "#{conf_dir}/ssl/#{app[:domains].first}.dhparams.pem" do
           owner 'root'
           group 'root'
           mode '0600'
@@ -78,20 +77,15 @@ module Drivers
       end
 
       def add_appserver_config
-        a = Drivers::Appserver::Factory.build(context, app)
         opts = { application: app, deploy_dir: deploy_dir(app), out: out, conf_dir: conf_dir, adapter: adapter,
-                 name: a.adapter, deploy_env: deploy_env, appserver_config: a.webserver_config_params }
+                 name: Drivers::Appserver::Factory.build(context, app).adapter }
         return unless Drivers::Appserver::Base.adapters.include?(opts[:name])
-        generate_appserver_config(opts, site_config_template(opts[:name]), site_config_template_cookbook)
-      end
 
-      def generate_appserver_config(opts, source_template, source_cookbook)
-        notifying_template "#{opts[:conf_dir]}/sites-available/#{app['shortname']}.conf" do
+        context.template "#{opts[:conf_dir]}/sites-available/#{app['shortname']}.conf" do
           owner 'root'
           group 'root'
           mode '0644'
-          source source_template.to_s
-          cookbook source_cookbook.to_s
+          source "appserver.#{opts[:adapter]}.conf.erb"
           variables opts
         end
       end
@@ -100,25 +94,9 @@ module Drivers
         application = app
         conf_path = conf_dir
 
-        notifying_link "#{conf_path}/sites-enabled/#{application['shortname']}.conf" do
+        context.link "#{conf_path}/sites-enabled/#{application['shortname']}.conf" do
           to "#{conf_path}/sites-available/#{application['shortname']}.conf"
         end
-      end
-
-      def site_config_template(appserver_adapter)
-        (node['deploy'][app['shortname']][driver_type] || {})['site_config_template'] ||
-          node['defaults'][driver_type]['site_config_template'] ||
-          appserver_site_config_template(appserver_adapter)
-      end
-
-      def appserver_site_config_template(_appserver_adapter)
-        "appserver.#{adapter}.conf.erb"
-      end
-
-      def site_config_template_cookbook
-        (node['deploy'][app['shortname']][driver_type] || {})['site_config_template_cookbook'] ||
-          node['defaults'][driver_type]['site_config_template_cookbook'] ||
-          context.cookbook_name
       end
     end
   end

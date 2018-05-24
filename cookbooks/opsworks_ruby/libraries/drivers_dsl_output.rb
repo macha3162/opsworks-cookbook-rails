@@ -16,33 +16,11 @@ module Drivers
         self.class.output.presence || (self.class.superclass.respond_to?(:output) && self.class.superclass.output)
       end
 
-      def out
-        handle_output(raw_out)
-      end
-
-      def handle_output(unfiltered)
+      def handle_output(out)
         if output[:filter] && output[:filter].is_a?(Array)
-          unfiltered.select { |k, _v| output[:filter].include?(k.to_sym) }
-        else
-          unfiltered
+          out = out.select { |k, _v| output[:filter].include?(k.to_sym) }
         end
-      end
-
-      def raw_out
-        settings.each_with_object({}) do |(k, v), hsh|
-          hsh[k] = case v
-                   when Proc
-                     v.call(self, settings)
-                   else
-                     v
-                   end
-        end
-      end
-
-      def settings
-        node['defaults'][driver_type].merge(
-          node['deploy'][app['shortname']][driver_type] || {}
-        ).symbolize_keys
+        out
       end
     end
   end

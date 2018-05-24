@@ -53,12 +53,10 @@ Author: [Igor Rzegocki](https://www.rzegocki.pl/) ([@ajgon](https://github.com/a
 
 ### Contributors
 
-* Nick Marden ([@nickmarden](https://github.com/nickmarden))
 * Phong Si ([@phongsi](https://github.com/phongsi))
-* Kevin Pheasey ([@kpheasey](https://github.com/kpheasey))
 * Nathan Flood ([@npflood](https://github.com/npflood))
-* Teruo Adachi ([@interu](https://github.com/interu))
 * Marcos Beirigo ([@marcosbeirigo](https://github.com/marcosbeirigo))
+* Kevin Pheasey ([@kpheasey](https://github.com/kpheasey))
 
 ## License
 

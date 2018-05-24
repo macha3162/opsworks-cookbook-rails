@@ -24,11 +24,17 @@ module Drivers
       end
       alias after_undeploy after_deploy
 
-      def validate_app_engine; end
-
-      def webserver_config_params
-        {}
+      def out
+        handle_output(raw_out)
       end
+
+      def raw_out
+        node['defaults']['appserver'].merge(
+          node['deploy'][app['shortname']]['appserver'] || {}
+        ).symbolize_keys
+      end
+
+      def validate_app_engine; end
 
       protected
 
@@ -55,7 +61,7 @@ module Drivers
       def add_appserver_config
         opts = { deploy_dir: deploy_dir(app), out: out, deploy_env: deploy_env,
                  webserver: Drivers::Webserver::Factory.build(context, app).adapter,
-                 appserver_config: appserver_config, app_shortname: app['shortname'] }
+                 appserver_config: appserver_config }
 
         context.template File.join(opts[:deploy_dir], File.join('shared', 'config', opts[:appserver_config])) do
           owner node['deployer']['user']
@@ -123,7 +129,6 @@ module Drivers
       def environment
         framework = Drivers::Framework::Factory.build(context, app, options)
         app['environment'].merge(framework.out[:deploy_environment] || {})
-                          .merge('HOME' => node['deployer']['home'], 'USER' => node['deployer']['user'])
       end
     end
   end
